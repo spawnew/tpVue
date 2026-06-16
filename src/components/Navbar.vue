@@ -1,7 +1,7 @@
 <script setup>
 import { RouterLink, useRouter } from 'vue-router'
 import useAuthStore from '../store/useAuth'
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { supabase } from '../service/supabaseClient'
 
 const router = useRouter()
@@ -15,19 +15,33 @@ const isAdmin = computed(() =>
 
 const isMedico = ref(false)
 
-onMounted(async () => {
+async function verificarMedico() {
 
-  if (!authStore.user) return
-const { data, error } = await supabase
-  .from('medicos')
-  .select('id')
-  .eq('user_id', authStore.user.id)
+  if (!authStore.user) {
+    isMedico.value = false
+    return
+  }
 
-console.log('Medico encontrado:', data)
+  const { data } = await supabase
+    .from('medicos')
+    .select('id')
+    .eq('user_id', authStore.user.id)
 
-isMedico.value = data?.length > 0
+  console.log('Medico encontrado:', data)
 
+  isMedico.value = data?.length > 0
+}
+
+onMounted(() => {
+  verificarMedico()
 })
+
+watch(
+  () => authStore.user,
+  () => {
+    verificarMedico()
+  }
+)
 
 const handleLogout = async () => {
   try {

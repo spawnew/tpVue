@@ -11,6 +11,7 @@ const especialidadSeleccionada = ref('')
 const mensaje = ref('')
 const medicos = ref([])
 const medicoSeleccionado = ref('')
+const horasOcupadas = ref([])
 const hoy = new Date().toISOString().split('T')[0]
 
 const especialidades = [
@@ -23,23 +24,29 @@ const especialidades = [
 ]
 
 const horariosDisponibles = computed(() => {
- 
-  if (!fecha.value) {
-    return horarios
+
+  let disponibles = [...horarios]
+
+  if (fecha.value) {
+
+    const hoy = new Date().toISOString().split('T')[0]
+
+    if (fecha.value === hoy) {
+
+      const horaActual = new Date().getHours()
+
+      disponibles = disponibles.filter(hora => {
+        const horaTurno = parseInt(hora.split(':')[0])
+        return horaTurno > horaActual
+      })
+    }
   }
 
-  const hoy = new Date().toISOString().split('T')[0]
+  disponibles = disponibles.filter(
+    hora => !horasOcupadas.value.includes(hora)
+  )
 
-  if (fecha.value !== hoy) {
-    return horarios
-  }
-
-  const horaActual = new Date().getHours()
-
-  return horarios.filter(hora => {
-    const horaTurno = parseInt(hora.split(':')[0])
-    return horaTurno > horaActual
-  })
+  return disponibles
 })
 
 const horarios = [
@@ -70,6 +77,30 @@ async function cargarMedicos() {
   if (!error) {
     medicos.value = data
   }
+}
+
+async function cargarHorasOcupadas() {
+
+  if (!fecha.value || !medicoSeleccionado.value) {
+    horasOcupadas.value = []
+    return
+  }
+
+  const { data, error } = await supabase
+    .from('turnos')
+    .select('hora')
+    .eq('medico_id', medicoSeleccionado.value)
+    .eq('fecha', fecha.value)
+    .neq('estado', 'cancelado')
+
+  if (error) {
+    console.log(error)
+    return
+  }
+
+  horasOcupadas.value = data.map(turno => turno.hora)
+
+  console.log("Horas ocupadas:", horasOcupadas.value)
 }
 
 async function solicitarTurno() {
@@ -134,9 +165,10 @@ async function solicitarTurno() {
   <h3>2. Seleccioná un médico</h3>
 
   <select
-    v-model="medicoSeleccionado"
-    class="formulario-select"
-  >
+  v-model="medicoSeleccionado"
+  class="formulario-select"
+  @change="cargarHorasOcupadas"
+>
     <option disabled value="">
       Elegí un médico
     </option>
@@ -159,6 +191,7 @@ async function solicitarTurno() {
   v-model="fecha"
   :min="hoy"
   class="fecha-input"
+  @change="cargarHorasOcupadas"
 />
 
 <h3>4. Seleccioná un Horario</h3>
